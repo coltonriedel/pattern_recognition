@@ -1,0 +1,7 @@
+Parsed 75 training set records in 0.000129694 seconds
+Parsed 25 test set records in 3.8692e-05 seconds
+
+Trained perceptron with 1 iterations in 4.958e-06 seconds
+
+Evaluated 25 test records in 1.746e-06 seconds with 100% accuracy
+Weights: y = x_1 * (0.41) + x_2 * (1.31) + -1.99
