@@ -8,8 +8,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -52,7 +52,7 @@ size_t read_data(std::vector<std::vector<uint8_t>>& data, std::ifstream& file)
   size_t num_records = data[0].size();
   for (auto feature : data)
     if (feature.size() != num_records)
-      return -1;
+      return 0;
 
   return data[0].size();
 }
@@ -137,8 +137,6 @@ int main(int argc, char* argv[])
   size_t num_features = 784;
   size_t training_records;
   size_t test_set_records;
-  std::vector<double> precison;
-  std::vector<double> recall;
 
   std::string training_filename(argv[1]);
   std::string test_set_filename(argv[2]);
@@ -150,7 +148,7 @@ int main(int argc, char* argv[])
   std::vector<std::vector<uint8_t>> training_data;
   training_data.resize(1 /* class */ + num_features);
 
-  // 2D matrix (|features| + 1) * (|training set|)
+  // 2D matrix (|features| + 1) * (|test set|)
   std::vector<std::vector<uint8_t>> test_set_data;
   test_set_data.resize(1 /* class */ + num_features);
 
@@ -178,7 +176,7 @@ int main(int argc, char* argv[])
   training_records = read_data(training_data, training_file);
   auto stop = std::chrono::high_resolution_clock::now();
 
-  if (training_records == -1)
+  if (training_records == 0)
   {
     std::cout << "Parsing training data set failed, aborting" << std::endl;
 
@@ -202,7 +200,7 @@ int main(int argc, char* argv[])
   test_set_records = read_data(test_set_data, test_set_file);
   stop = std::chrono::high_resolution_clock::now();
 
-  if (test_set_records == -1)
+  if (test_set_records == 0)
   {
     std::cout << "Parsing test set data set failed, aborting" << std::endl;
 
