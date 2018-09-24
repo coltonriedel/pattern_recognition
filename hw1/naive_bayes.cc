@@ -77,9 +77,9 @@ void train(std::vector<double>& priors,
   // For each feature (i = 0 .. num_features)
   #pragma omp parallel for
   for (size_t i = 0; i < parameters.size(); ++i)
-    // For each feature value
+    // For each feature value (j = 0 .. 255)
     for (size_t j = 0; j < parameters[i].size(); ++j)
-      // For each class
+      // For each class (k = 0 .. 9)
       for (size_t k = 0; k < parameters[i][j].size(); ++k)
       {
         size_t count = 1;
@@ -94,11 +94,12 @@ void train(std::vector<double>& priors,
       }
 }
 
-size_t evaluate(std::vector<double>& priors,
+void evaluate(std::vector<double>& priors,
     std::vector<std::vector<std::vector<double>>>& parameters,
     std::vector<std::vector<uint8_t>>& test_set_data,
     std::vector<size_t>& prediction)
 {
+  // For each digit to predict
   #pragma omp parallel for
   for (size_t i = 0; i < test_set_data[0].size(); ++i)
   {
