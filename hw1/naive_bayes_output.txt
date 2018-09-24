@@ -1,0 +1,17 @@
+Parsed 60000 training set records in 1.4789 seconds
+Parsed 10000 test set records in 0.244432 seconds
+Trained model in 17.1102 seconds
+
+Evaluated 10000 test records in 0.216391 seconds with 83.63% accuracy
+
+Digit	 Precision	 Recall
+0	 0.889796	 0.91023
+1	 0.970925	 0.860938
+2	 0.790698	 0.893757
+3	 0.826733	 0.766055
+4	 0.822811	 0.82449
+5	 0.674888	 0.775773
+6	 0.889353	 0.884735
+7	 0.838521	 0.912169
+8	 0.779261	 0.791449
+9	 0.847374	 0.752641
