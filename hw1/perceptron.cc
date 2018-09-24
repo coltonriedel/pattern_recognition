@@ -79,8 +79,7 @@ size_t train(std::array<double, 3>& weight,
 
       // If incorrect prediction (different signs), update weights
       if ((prediction < 0 && training_data[2][i] > 0)
-          || (prediction > 0 && training_data[2][i] < 0)
-          || prediction == 0)
+          || (prediction > 0 && training_data[2][i] < 0))
       {
         errors++;
 
@@ -123,7 +122,7 @@ int main(int argc, char* argv[])
   size_t training_records;
   size_t test_set_records;
 
-  std::array<double, 3> weights = {0, 0, 0};
+  std::array<double, 3> weight = {0.01, 0.01, 0.01};
 
   std::string training_filename(argv[1]);
   std::string test_set_filename(argv[2]);
@@ -195,7 +194,7 @@ int main(int argc, char* argv[])
 
   // Train the perceptron
   start = std::chrono::high_resolution_clock::now();
-  size_t iter = train(weights, training_data);
+  size_t iter = train(weight, training_data);
   stop = std::chrono::high_resolution_clock::now();
 
   std::cout << "\nTrained perceptron with " << iter << " iterations in "
@@ -205,13 +204,14 @@ int main(int argc, char* argv[])
 
   // Make predictions for the test set
   start = std::chrono::high_resolution_clock::now();
-  evaluate(weights, test_set_data, prediction);
+  evaluate(weight, test_set_data, prediction);
   stop = std::chrono::high_resolution_clock::now();
 
   // Determine number of correct predictions
   size_t correct = 0;
   for (size_t i = 0; i < test_set_records; ++i)
-    if (prediction[i] < 0 && test_set_data[2][i] < 0)
+    if ((prediction[i] < 0 && test_set_data[2][i] < 0)
+        || (prediction[i] > 0 && test_set_data[2][i] > 0))
       correct++;
 
   std::cout << "\nEvaluated " << test_set_records << " test records in "
@@ -220,6 +220,9 @@ int main(int argc, char* argv[])
     << " seconds with "
     << (correct * 100.0) / test_set_records
     << "\% accuracy" << std::endl;
+
+  std::cout << "Weights: y = x_1 * (" << weight[0] << ") + x_2 * (" << weight[1]
+   << ") + " << weight[2] << std::endl;
 
   // Close files, if open
   if (training_file.is_open())
