@@ -53,7 +53,7 @@ size_t read_data(std::vector<std::vector<double>>& data, std::ifstream& file)
 
   // Check that all features have the same size
   size_t num_records = data[0].size();
-  for (auto feature : data)
+  for (const auto& feature : data)
     if (feature.size() != num_records)
       return 0;
 

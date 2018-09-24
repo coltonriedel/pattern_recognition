@@ -50,7 +50,7 @@ size_t read_data(std::vector<std::vector<uint8_t>>& data, std::ifstream& file)
 
   // Check that all features have the same size
   size_t num_records = data[0].size();
-  for (auto feature : data)
+  for (const auto& feature : data)
     if (feature.size() != num_records)
       return 0;
 
@@ -105,7 +105,7 @@ void evaluate(std::vector<double>& priors,
   {
     // Set probability equal to log of prior probability
     std::vector<double> probability;
-    for (auto prior : priors)
+    for (const auto& prior : priors)
       probability.push_back(std::log(prior));
 
     // Determine probabiltiy of each class given feature value
