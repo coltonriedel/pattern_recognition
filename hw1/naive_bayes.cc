@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -230,6 +231,29 @@ int main(int argc, char* argv[])
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
 
+  // Print the prior probabilities
+  std::cout << "\nPrior probabilities:" << std::endl;
+  for (size_t i = 0; i < priors.size(); ++i)
+    std::cout << "\t" << i << ": " << priors[i] << std::endl;
+
+  // Print 10 random conditional probabilites
+  std::srand(std::time(nullptr));
+  std::cout << "\nRandomly selected conditional probabilities:" << std::endl;
+  for (size_t l = 0; l < 10; ++l)
+  {
+    // Feature - x_i
+    size_t i = std::rand() % parameters.size();
+    // Feature value - x_i = ?
+    size_t j = std::rand() % parameters[i].size();
+    // Class value - y = ?
+    size_t k = std::rand() % parameters[i][j].size();
+
+    std::cout << "\tP(x_"
+      << std::left << std::setw(3) << std::setfill(' ') << i << " = "
+      << std::left << std::setw(3) << std::setfill(' ') << j << " | y = "
+      << k << ") = " << parameters[i][j][k] << std::endl;
+  }
+
   // Evaluate the test data
   start = std::chrono::high_resolution_clock::now();
   evaluate(priors, parameters, test_set_data, prediction);
@@ -248,7 +272,7 @@ int main(int argc, char* argv[])
     << (correct * 100.0) / test_set_records
     << "\% accuracy" << std::endl;
 
-  std::cout << "\nDigit\t Precision\t Recall" << std::endl;
+  std::cout << "\n\tDigit\t Precision\t Recall" << std::endl;
   // Compute precision and recall for all digits
   for (size_t i = 0; i < class_domain; ++i)
   {
@@ -264,9 +288,11 @@ int main(int argc, char* argv[])
       else if (prediction[j] != i && test_set_data[0][j] == i)
         fn++;
 
-    std::cout << i << "\t " << (tp / static_cast<double>(tp + fn))
+    std::cout << "\t" << i << "\t " << (tp / static_cast<double>(tp + fn))
       << "\t " << (tp / static_cast<double>(tp + fp)) << std::endl;
   }
+
+  std::cout << std::endl;
 
   // Close files, if open
   if (training_file.is_open())
