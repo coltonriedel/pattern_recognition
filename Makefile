@@ -3,3 +3,6 @@ hw1_naive_bayes:
 
 hw1_perceptron:
 	g++ --std=c++14 -fopenmp -O3 -Wall -Werror -o hw1_perceptron.exe hw1/perceptron.cc
+
+project_gecko:
+	g++ --std=c++14 -O3 -Wall -Werror -o gecko.exe project/gecko.cc
