@@ -203,13 +203,14 @@ graph read_graph_nodes(const std::string& csv_filename, size_t field_num,
  */
 void calc_edge_cuts(graph& g, size_t s)
 {
+  // Resize edge cut weight vector
+  g.edge.resize(g.node.size() - 1);
+
   // For each node in the graph
   // (skip the last node because there are no future time points for it to
   //  connect to)
-  for (size_t n = 0; n < g.node.size() -1; ++n)
+  for (size_t n = 0; n < g.node.size() - 1; ++n)
   {
-    double weight = 0;
-
     // For the k nearest neighbors (equivalent to k/2 = s future time points
     //   since we don't want to double count edges)
     for (size_t e = 1; e < s; ++e)
@@ -221,13 +222,16 @@ void calc_edge_cuts(graph& g, size_t s)
 
         // Calculate the euclidian distance between points and add it to the
         // running sum of edge cut weights
-        weight += std::log(1.0 / (std::sqrt(e * e + d * d) + 1));
+        g.edge[n] += std::log(1.0 / (std::sqrt(e * e + 128 * d * d) + 1));
+        g.edge[n + e] += std::log(1.0 / (std::sqrt(e * e + 128 * d * d) + 1));
       }
     }
-
-    // Add edge cut value to graph
-    g.edge.push_back(weight);
   }
+
+  // Print out value and edge cut weight for visualization
+  //std::cout << "index,value,cut_weight" << std::endl;
+  //for (size_t i = 0; i < g.edge.size(); ++i)
+  //  std::cout << i << "," << g.node[i] << "," << g.edge[i] << std::endl;
 
   // At this point we have all the edge cuts completed with the exception of the
   // s-1 first time series points and s-1 last points, but technically we don't
@@ -284,7 +288,6 @@ int main(int argc, char* argv[])
   {
     std::cerr << "Incorrect number of edge cut weights given graph size"
       << std::endl;
-    std::cout << g.edge.size() << std::endl;
 
     exit(1);
   }
