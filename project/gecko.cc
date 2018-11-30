@@ -111,7 +111,7 @@ public:
 
   // Funtion to return if the cluster has a parent (in effect, if it is eligible
   // to be merged with some other cluster
-  bool mergable()
+  bool mergeable() const
   {
     return parent == -1;
   }
@@ -281,7 +281,7 @@ void form_clusters(graph& g, size_t s, std::vector<cluster>& c, size_t start,
   // Check if there are enough nodes in the given sub-graph to form multiple
   // clusters, if not we're finished. Create a cluster and return
   if ((end - start + 1) < 2 * s)
-    c.push_back({ start, end, c.size(), g });
+    c.push_back({ start, end, static_cast<int>(c.size()), g });
   else // There are enough nodes to generate sub-clusters
   {
     // Find the minimum edge cut value in the eligible region
@@ -315,12 +315,112 @@ void merge_clusters(std::vector<cluster>& cluster_list)
 {
   // Repeat process until there is a single root cluster remaining
   while (std::count_if(cluster_list.begin(), cluster_list.end(),
-        [](cluster c){ return c.mergable(); }) != 1)
+        [](cluster c){ return c.mergeable(); }) != 1)
   {
     // Select two adjacent clusters with the minimum representative slope
     // difference
+    int lhs_cluster = -1;
+    int rhs_cluster = -1;
+    double min_dissimilarity = 1e6;
 
+    // For each cluster
+    for (size_t i = 0; i < cluster_list.size(); ++i)
+    {
+      // If i isn't mergeable then there's no sense in trying to merge it
+      if (!cluster_list[i].mergeable())
+        continue;
+
+      // For each other cluster (if i is one of the original clusters, i.e. has
+      //   no children, then we only need to search subsequent clusters since we
+      //   know all the original clusters were ordered, and any new clusters are
+      //   appended to the list at creation
+      for (size_t j = i + 1; j < cluster_list.size()
+          && cluster_list[i].left == -1 && cluster_list[i].right == -1; ++j)
+      {
+        // If both clusters are mergeable and adjacent, and the dissimilarity is
+        //   less than the currently identified minimum, nominate clusters for
+        //   merging
+        if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
+            && cluster_list[i].end + 1 == cluster_list[j].start
+            && std::abs(cluster_list[i].value - cluster_list[j].value)
+              < min_dissimilarity)
+        {
+          lhs_cluster = i;
+          rhs_cluster = j;
+
+          min_dissimilarity =
+            std::abs(cluster_list[i].value - cluster_list[j].value);
+        }
+      }
+
+      // For each other cluster (if i is a newly created cluster, i.e. is a
+      //   result of the merger of two other clusters and therefore has
+      //   children, then we must search all clusters since i is not in any
+      //   order
+      for (size_t j = 0; j < cluster_list.size()
+          && (cluster_list[i].left != -1 || cluster_list[i].right != -1); ++j)
+      {
+        // If both clusters are mergeable and adjacent, and the dissimilarity is
+        //   less than the currently identified minimum, nominate clusters for
+        //   merging
+        if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
+            && cluster_list[i].end + 1 == cluster_list[j].start
+            && std::abs(cluster_list[i].value - cluster_list[j].value)
+              < min_dissimilarity)
+        {
+          lhs_cluster = i;
+          rhs_cluster = j;
+
+          min_dissimilarity =
+            std::abs(cluster_list[i].value - cluster_list[j].value);
+        }
+      }
+    }
+
+    // Double check that two valid clusters were selected
+    if (lhs_cluster == -1 || rhs_cluster == -1
+        || lhs_cluster > static_cast<int>(cluster_list.size())
+        || rhs_cluster > static_cast<int>(cluster_list.size())
+        || cluster_list[lhs_cluster].end + 1 != cluster_list[rhs_cluster].start)
+    {
+      std::cerr << "ERROR: failed to select clusters for merging" << std::endl;
+
+      //std::cout << "LHS: " << lhs_cluster
+      //  << " RHS: " << rhs_cluster
+      //  << " size: " << cluster_list.size()
+      //  << " dis: " << min_dissimilarity
+      //  << " l_end: " << cluster_list[lhs_cluster].end
+      //  << " r_start: " << cluster_list[rhs_cluster].start
+      //  << std::endl;
+
+      exit(1);
+    }
+
+    // Create a new cluster which contains the lhs and rhs clusters as children
+    auto new_cluster = cluster_list[lhs_cluster] + cluster_list[rhs_cluster];
+
+    // Mark the lhs and rhs clusters as having a parent
+    cluster_list[lhs_cluster].parent = cluster_list.size();
+    cluster_list[rhs_cluster].parent = cluster_list.size();
+
+    // Mark the new cluster's index
+    new_cluster.self = cluster_list.size();
+
+    // Append to cluster list
+    cluster_list.push_back(new_cluster);
   }
+
+  // Debug output
+  //std::cout << "Resulting clusters:" << std::endl;
+  //for (auto const& cluster : cluster_list)
+  //  std::cout << "ID: " << cluster.self
+  //    << " LHS: " << cluster.left
+  //    << " RHS: " << cluster.right
+  //    << " PAR: " << cluster.parent
+  //    << " MER: " << (int)cluster.mergeable()
+  //    << " start: " << cluster.start
+  //    << " end: " << cluster.end
+  //    << std::endl;
 }
 
 int main(int argc, char* argv[])
@@ -388,7 +488,15 @@ int main(int argc, char* argv[])
     << " seconds" << std::endl;
 
   // Recursively merge clusters
-  // merge_clusters(g);
+  start = std::chrono::high_resolution_clock::now();
+  merge_clusters(cluster_list);
+  stop = std::chrono::high_resolution_clock::now();
+
+  std::cout << "Merged clusters based on similarity, resulting in a tree of "
+    << cluster_list.size() << " total clusters in "
+    << std::chrono::duration_cast<
+      std::chrono::duration<double>>(stop - start).count()
+    << " seconds" << std::endl;
 
   // Classify using RIPPER algorithm
   //
