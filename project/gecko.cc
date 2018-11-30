@@ -304,15 +304,20 @@ void form_clusters(graph& g, size_t s, std::vector<cluster>& c, size_t start,
  * already organized its probably too much trouble to change so we'll just do it
  * iteratively - doesn't matter anyways
  *
+ * Note that the last cluster in the cluster list is the root of the tree
+ *
  * INPUT:
  *  cluster_list : a vector of clusters
  *
  * OUTPUT:
- *          root : the index of the root cluster (clusters have members to store
- *                   pointers to leaves)
+ *   A vector containing a history of the similarity of merges
  */
-void merge_clusters(std::vector<cluster>& cluster_list)
+std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
 {
+  // Vector of dissimilarity of merges, to be used later in determining the
+  // appropriate number of clusters to use
+  std::vector<double> dissimilarity;
+
   // Repeat process until there is a single root cluster remaining
   while (std::count_if(cluster_list.begin(), cluster_list.end(),
         [](cluster c){ return c.mergeable(); }) != 1)
@@ -342,14 +347,15 @@ void merge_clusters(std::vector<cluster>& cluster_list)
         //   merging
         if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
             && cluster_list[i].end + 1 == cluster_list[j].start
-            && std::abs(cluster_list[i].value - cluster_list[j].value)
+            && std::abs(std::log(cluster_list[i].value + 1)
+              - std::log(cluster_list[j].value + 1))
               < min_dissimilarity)
         {
           lhs_cluster = i;
           rhs_cluster = j;
 
-          min_dissimilarity =
-            std::abs(cluster_list[i].value - cluster_list[j].value);
+          min_dissimilarity = std::abs(std::log(cluster_list[i].value + 1)
+              - std::log(cluster_list[j].value + 1));
         }
       }
 
@@ -365,14 +371,15 @@ void merge_clusters(std::vector<cluster>& cluster_list)
         //   merging
         if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
             && cluster_list[i].end + 1 == cluster_list[j].start
-            && std::abs(cluster_list[i].value - cluster_list[j].value)
+            && std::abs(std::log(cluster_list[i].value + 1)
+              - std::log(cluster_list[j].value + 1))
               < min_dissimilarity)
         {
           lhs_cluster = i;
           rhs_cluster = j;
 
-          min_dissimilarity =
-            std::abs(cluster_list[i].value - cluster_list[j].value);
+          min_dissimilarity = std::abs(std::log(cluster_list[i].value + 1)
+              - std::log(cluster_list[j].value + 1));
         }
       }
     }
@@ -408,6 +415,9 @@ void merge_clusters(std::vector<cluster>& cluster_list)
 
     // Append to cluster list
     cluster_list.push_back(new_cluster);
+
+    // Record the dissimilarity
+    dissimilarity.push_back(min_dissimilarity);
   }
 
   // Debug output
@@ -421,6 +431,8 @@ void merge_clusters(std::vector<cluster>& cluster_list)
   //    << " start: " << cluster.start
   //    << " end: " << cluster.end
   //    << std::endl;
+
+  return dissimilarity;
 }
 
 int main(int argc, char* argv[])
@@ -489,7 +501,7 @@ int main(int argc, char* argv[])
 
   // Recursively merge clusters
   start = std::chrono::high_resolution_clock::now();
-  merge_clusters(cluster_list);
+  auto dissim = merge_clusters(cluster_list);
   stop = std::chrono::high_resolution_clock::now();
 
   std::cout << "Merged clusters based on similarity, resulting in a tree of "
@@ -497,6 +509,10 @@ int main(int argc, char* argv[])
     << std::chrono::duration_cast<
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
+
+  //for (const auto& d : dissim)
+  //  std::cout << d << " ";
+  //std::cout << std::endl;
 
   // Classify using RIPPER algorithm
   //
