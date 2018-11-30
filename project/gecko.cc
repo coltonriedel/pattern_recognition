@@ -10,9 +10,11 @@
 //
 // 11/28/2018
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <iterator>
 #include <fstream>
 #include <limits>
 #include <string>
@@ -79,19 +81,25 @@ public:
   // Representative value of the cluster
   double value;
 
-  // Pointers to any sub clusters which might exist
-  cluster* left;
-  cluster* right;
+  // Indices of myself, any sub clusters, and parent
+  int self;
+  int left;
+  int right;
+  int parent = -1;
 
-  cluster(size_t start, size_t end, double value, cluster* left, cluster* right)
+  cluster(size_t start, size_t end, double value, int left, int right)
     : start(start), end(end), value(value), left(left), right(right)
   { }
 
-  cluster(size_t start, size_t end, graph g)
-    : start(start), end(end), left(nullptr), right(nullptr)
+  cluster(size_t start, size_t end, int index, graph& g)
+    : start(start), end(end), self(index), left(-1), right(-1)
   {
-    // Compute value of cluster
-    //   need to regress over points
+    double sum = 0;
+
+    for (size_t i = start; i < end - 1; ++i)
+      sum += (g.node[i] - g.node[i + 1]);
+
+    value = sum / (end - start);
   }
 
   // Return the number of nodes in the cluster (equivalent to duration as
@@ -101,6 +109,13 @@ public:
     return end - start;
   }
 
+  // Funtion to return if the cluster has a parent (in effect, if it is eligible
+  // to be merged with some other cluster
+  bool mergable()
+  {
+    return parent == -1;
+  }
+
   // Overload operator+ to represent merging two clusters, input is rhs cluster,
   // output is a new cluster composed of the two sub clusters
   cluster operator+(cluster& rhs)
@@ -108,9 +123,16 @@ public:
     if (end+1 != rhs.start)
       throw std::runtime_error("Error: attempt to join non-adjacent clusters");
 
-    // TODO finish - need to calculate value
+    double new_value = (value * size() + rhs.value * rhs.size())
+      / (rhs.end - start);
 
-    return { start, rhs.end, value, this, &rhs };
+    return { start, rhs.end, new_value, self, rhs.self };
+  }
+
+  // Overload operator< to enable sorting of clusters by starting vertex
+  bool operator< (const cluster& rhs) const
+  {
+    return start < rhs.start;
   }
 };
 
@@ -240,6 +262,67 @@ void calc_edge_cuts(graph& g, size_t s)
   // cutting anyways)
 }
 
+/* Function to recursively bisect the graph along the min cuts to form as many
+ * clusters as possible of minimum size s
+ *
+ * INPUT:
+ *       g : graph
+ *       s : minimum cluster size
+ *       c : list of clusters
+ *   start : the starting node available for clustering
+ *     end : the end node available for clustering
+ *
+ * OUTPUT:
+ *   Populated vector of clusters sorted by starting node
+ */
+void form_clusters(graph& g, size_t s, std::vector<cluster>& c, size_t start,
+    size_t end)
+{
+  // Check if there are enough nodes in the given sub-graph to form multiple
+  // clusters, if not we're finished. Create a cluster and return
+  if ((end - start + 1) < 2 * s)
+    c.push_back({ start, end, c.size(), g });
+  else // There are enough nodes to generate sub-clusters
+  {
+    // Find the minimum edge cut value in the eligible region
+    //   The s first and s last points are excluded from the range to avoid
+    //   generating sub-clusters which would not meet minimum size requirements
+    auto cut = std::min_element((g.edge.begin() + start + s - 2),
+        (g.edge.begin() + end - s + 1));
+
+    // Recursively call form_clusters for the sub-graphs on either side of the
+    // new cut
+    form_clusters(g, s, c, start, std::distance(g.edge.begin(), cut));
+    form_clusters(g, s, c, std::distance(g.edge.begin(), cut + 1), end);
+  }
+}
+
+/* Function to merge clusters until all clusters have been sucessfully merged
+ * into a single tree
+ *
+ * Paper says this should be done recursively, but given the way things are
+ * already organized its probably too much trouble to change so we'll just do it
+ * iteratively - doesn't matter anyways
+ *
+ * INPUT:
+ *  cluster_list : a vector of clusters
+ *
+ * OUTPUT:
+ *          root : the index of the root cluster (clusters have members to store
+ *                   pointers to leaves)
+ */
+void merge_clusters(std::vector<cluster>& cluster_list)
+{
+  // Repeat process until there is a single root cluster remaining
+  while (std::count_if(cluster_list.begin(), cluster_list.end(),
+        [](cluster c){ return c.mergable(); }) != 1)
+  {
+    // Select two adjacent clusters with the minimum representative slope
+    // difference
+
+  }
+}
+
 int main(int argc, char* argv[])
 {
   // If incorrect number of args are supplied, abort
@@ -292,8 +375,17 @@ int main(int argc, char* argv[])
     exit(1);
   }
 
+  std::vector<cluster> cluster_list;
+
   // Bisect graph recursively into clusters
-  // form_clusters(g, s);
+  start = std::chrono::high_resolution_clock::now();
+  form_clusters(g, s, cluster_list, 0, g.edge.size()+1);
+  stop = std::chrono::high_resolution_clock::now();
+
+  std::cout << "Formed " << cluster_list.size() << " clusters in "
+    << std::chrono::duration_cast<
+      std::chrono::duration<double>>(stop - start).count()
+    << " seconds" << std::endl;
 
   // Recursively merge clusters
   // merge_clusters(g);
