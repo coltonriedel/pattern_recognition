@@ -94,12 +94,7 @@ public:
   cluster(size_t start, size_t end, int index, graph& g)
     : start(start), end(end), self(index), left(-1), right(-1)
   {
-    double sum = 0;
-
-    for (size_t i = start; i < end - 1; ++i)
-      sum += (g.node[i] - g.node[i + 1]);
-
-    value = sum / (end - start);
+    value = double (g.node[start] - g.node[end]) / double (end - start);
   }
 
   // Return the number of nodes in the cluster (equivalent to duration as
@@ -124,7 +119,7 @@ public:
       throw std::runtime_error("Error: attempt to join non-adjacent clusters");
 
     double new_value = (value * size() + rhs.value * rhs.size())
-      / (rhs.end - start);
+      / double (rhs.end - start);
 
     return { start, rhs.end, new_value, self, rhs.self };
   }
@@ -235,7 +230,7 @@ void calc_edge_cuts(graph& g, size_t s)
   {
     // For the k nearest neighbors (equivalent to k/2 = s future time points
     //   since we don't want to double count edges)
-    for (size_t e = 1; e < s; ++e)
+    for (size_t e = 1; e <= s; ++e)
     {
       // Don't attempt to connect to nodes that don't exist
       if (n + e < g.node.size())
@@ -244,8 +239,8 @@ void calc_edge_cuts(graph& g, size_t s)
 
         // Calculate the euclidian distance between points and add it to the
         // running sum of edge cut weights
-        g.edge[n] += std::log(1.0 / (std::sqrt(e * e + 128 * d * d) + 1));
-        g.edge[n + e] += std::log(1.0 / (std::sqrt(e * e + 128 * d * d) + 1));
+        for (size_t i = 0; i <= e; ++i)
+          g.edge[n + i] += std::log(1.0 / (std::sqrt(e * e + d * d) + 1));
       }
     }
   }
@@ -335,6 +330,12 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
       if (!cluster_list[i].mergeable())
         continue;
 
+      // Cache the i representative slope
+      double i_rep = cluster_list[i].value >= 0
+        ? std::log(cluster_list[i].value + 1)
+        : -std::log(-cluster_list[i].value + 1);
+
+
       // For each other cluster (if i is one of the original clusters, i.e. has
       //   no children, then we only need to search subsequent clusters since we
       //   know all the original clusters were ordered, and any new clusters are
@@ -342,20 +343,26 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
       for (size_t j = i + 1; j < cluster_list.size()
           && cluster_list[i].left == -1 && cluster_list[i].right == -1; ++j)
       {
+        // If j isn't mergeable then there's no sense in trying to merge it
+        if (!cluster_list[j].mergeable())
+          continue;
+
+        // Cache the j representative slope
+        double j_rep = cluster_list[j].value >= 0
+          ? std::log(cluster_list[j].value + 1)
+          : -std::log(-cluster_list[j].value + 1);
+
         // If both clusters are mergeable and adjacent, and the dissimilarity is
         //   less than the currently identified minimum, nominate clusters for
         //   merging
         if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
             && cluster_list[i].end + 1 == cluster_list[j].start
-            && std::abs(std::log(cluster_list[i].value + 1)
-              - std::log(cluster_list[j].value + 1))
-              < min_dissimilarity)
+            && std::abs(i_rep - j_rep) < min_dissimilarity)
         {
           lhs_cluster = i;
           rhs_cluster = j;
 
-          min_dissimilarity = std::abs(std::log(cluster_list[i].value + 1)
-              - std::log(cluster_list[j].value + 1));
+          min_dissimilarity = std::abs(i_rep - j_rep);
         }
       }
 
@@ -366,20 +373,26 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
       for (size_t j = 0; j < cluster_list.size()
           && (cluster_list[i].left != -1 || cluster_list[i].right != -1); ++j)
       {
+        // If j isn't mergeable then there's no sense in trying to merge it
+        if (!cluster_list[j].mergeable())
+          continue;
+
+        // Cache the j representative slope
+        double j_rep = cluster_list[j].value >= 0
+          ? std::log(cluster_list[j].value + 1)
+          : -std::log(-cluster_list[j].value + 1);
+
         // If both clusters are mergeable and adjacent, and the dissimilarity is
         //   less than the currently identified minimum, nominate clusters for
         //   merging
         if (cluster_list[i].mergeable() && cluster_list[j].mergeable()
             && cluster_list[i].end + 1 == cluster_list[j].start
-            && std::abs(std::log(cluster_list[i].value + 1)
-              - std::log(cluster_list[j].value + 1))
-              < min_dissimilarity)
+            && std::abs(i_rep - j_rep) < min_dissimilarity)
         {
           lhs_cluster = i;
           rhs_cluster = j;
 
-          min_dissimilarity = std::abs(std::log(cluster_list[i].value + 1)
-              - std::log(cluster_list[j].value + 1));
+          min_dissimilarity = std::abs(i_rep - j_rep);
         }
       }
     }
@@ -430,6 +443,7 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
   //    << " MER: " << (int)cluster.mergeable()
   //    << " start: " << cluster.start
   //    << " end: " << cluster.end
+  //    << " value: " << cluster.value
   //    << std::endl;
 
   return dissimilarity;
@@ -510,9 +524,27 @@ int main(int argc, char* argv[])
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
 
-  //for (const auto& d : dissim)
-  //  std::cout << d << " ";
-  //std::cout << std::endl;
+  // Determine number of clusters to use
+  //   Currently look at dissimilarity - if any merge has a dissimilarity 1500%
+  //   larger than the running average, use that merge as the cut off point
+  //
+  // This value may need to be changed, or alternative methods may need to be
+  //   implemented (e.g. an actual regression) to determine this point, subject
+  //   to evaluation of case specific performance
+  double average = dissim[0];
+  size_t i;
+  for (i = 1; i < dissim.size(); ++i)
+  {
+    if ((dissim[i] >= 0.05 && dissim[i] > average * 15)
+        || (average == 0 && dissim[i] > 0.1))
+      break;
+
+    average = ((average * i) + dissim[i]) / (i + 1);
+  }
+
+  size_t rec_clusters = dissim.size() - i - 1;
+
+  std::cout << "Recommend " << rec_clusters << " clusters" << std::endl;
 
   // Classify using RIPPER algorithm
   //
