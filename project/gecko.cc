@@ -519,7 +519,7 @@ std::vector<cluster> phase_one(graph g, size_t s)
   return cluster_list;
 }
 
-auto phase_two(std::vector<cluster> cluster_list)
+auto phase_two(std::vector<cluster>& cluster_list)
 {
   // Recursively merge clusters
   auto start = std::chrono::high_resolution_clock::now();
@@ -532,6 +532,12 @@ auto phase_two(std::vector<cluster> cluster_list)
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
   
+  std::cout << cluster_list.size()<<std::endl;
+  for (unsigned int i = 0; i < cluster_list.size(); i++)
+  {
+    std::cout << cluster_list[i].start<<std::endl;
+  }
+
   return dissim;
 }
 
