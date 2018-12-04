@@ -30,42 +30,42 @@
  */
 class graph
 {
-public:
-  // Vector to represent the nodes in the graph, size n
-  //   Each index represents a time series data point
-  //   e.g.: node[5] is the value of the time series at t=6
-  std::vector<int32_t> node;
+  public:
+    // Vector to represent the nodes in the graph, size n
+    //   Each index represents a time series data point
+    //   e.g.: node[5] is the value of the time series at t=6
+    std::vector<int32_t> node;
 
-  // Vector to represent the edge cut values in the graph, size n-1
-  //   Each index represents the edge cut between two time series points
-  //
-  //   e.g.: let min cluster size s = 5, then k = 2*s = 10
-  //
-  //         node[20] (t=21) has edges to its k=10 nearest neighbors, where we
-  //         assume the nearest neighbors are determined using temporal
-  //         locality
-  //
-  //         so then the node representing t=21 has edges to the k/2 previous
-  //         time series points, and the k/2 future time series points
-  //
-  //         egdes: 21-20, 21-19, 21-18, 21-17, 21-16
-  //                21-22, 21-23, 21-24, 21-25, 21-26
-  //
-  //         to reduce space and simplify later calculation, we store all edge
-  //         weights only once, so edge[20] contains the following weights:
-  //           21-22, 21-23, 21-24, 21-25, 21-26
-  //
-  //         plus, the applicable weights from edges which would be included in
-  //         this cut, but do not involve the node for t=21, such as:
-  //           20-22, 20-23, 20-24, 20-25
-  //           19-22, 19-23, 19-24
-  //           18-22, 19-23
-  //           17-22
-  //
-  //         Note that only one edge exists between any pair of nodes, so the
-  //         edge 17-22 and 22-17 is not repeated, and only included once in the
-  //         edge-cut sum
-  std::vector<double> edge;
+    // Vector to represent the edge cut values in the graph, size n-1
+    //   Each index represents the edge cut between two time series points
+    //
+    //   e.g.: let min cluster size s = 5, then k = 2*s = 10
+    //
+    //         node[20] (t=21) has edges to its k=10 nearest neighbors, where we
+    //         assume the nearest neighbors are determined using temporal
+    //         locality
+    //
+    //         so then the node representing t=21 has edges to the k/2 previous
+    //         time series points, and the k/2 future time series points
+    //
+    //         egdes: 21-20, 21-19, 21-18, 21-17, 21-16
+    //                21-22, 21-23, 21-24, 21-25, 21-26
+    //
+    //         to reduce space and simplify later calculation, we store all edge
+    //         weights only once, so edge[20] contains the following weights:
+    //           21-22, 21-23, 21-24, 21-25, 21-26
+    //
+    //         plus, the applicable weights from edges which would be included in
+    //         this cut, but do not involve the node for t=21, such as:
+    //           20-22, 20-23, 20-24, 20-25
+    //           19-22, 19-23, 19-24
+    //           18-22, 19-23
+    //           17-22
+    //
+    //         Note that only one edge exists between any pair of nodes, so the
+    //         edge 17-22 and 22-17 is not repeated, and only included once in the
+    //         edge-cut sum
+    std::vector<double> edge;
 };
 
 /* Class to represent a cluster within the graph, including the first and last
@@ -73,62 +73,62 @@ public:
  */
 class cluster
 {
-public:
-  // Index of the first and last nodes in the cluster
-  size_t start;
-  size_t end;
+  public:
+    // Index of the first and last nodes in the cluster
+    size_t start;
+    size_t end;
 
-  // Representative value of the cluster
-  double value;
+    // Representative value of the cluster
+    double value;
 
-  // Indices of myself, any sub clusters, and parent
-  int self;
-  int left;
-  int right;
-  int parent = -1;
+    // Indices of myself, any sub clusters, and parent
+    int self;
+    int left;
+    int right;
+    int parent = -1;
 
-  cluster(size_t start, size_t end, double value, int left, int right)
-    : start(start), end(end), value(value), left(left), right(right)
-  { }
+    cluster(size_t start, size_t end, double value, int left, int right)
+      : start(start), end(end), value(value), left(left), right(right)
+    { }
 
-  cluster(size_t start, size_t end, int index, graph& g)
-    : start(start), end(end), self(index), left(-1), right(-1)
-  {
-    value = double (g.node[start] - g.node[end]) / double (end - start);
-  }
+    cluster(size_t start, size_t end, int index, graph& g)
+      : start(start), end(end), self(index), left(-1), right(-1)
+    {
+      value = double (g.node[start] - g.node[end]) / double (end - start);
+    }
 
-  // Return the number of nodes in the cluster (equivalent to duration as
-  // clusters are temporal)
-  size_t size()
-  {
-    return end - start;
-  }
+    // Return the number of nodes in the cluster (equivalent to duration as
+    // clusters are temporal)
+    size_t size()
+    {
+      return end - start;
+    }
 
-  // Funtion to return if the cluster has a parent (in effect, if it is eligible
-  // to be merged with some other cluster
-  bool mergeable() const
-  {
-    return parent == -1;
-  }
+    // Funtion to return if the cluster has a parent (in effect, if it is eligible
+    // to be merged with some other cluster
+    bool mergeable() const
+    {
+      return parent == -1;
+    }
 
-  // Overload operator+ to represent merging two clusters, input is rhs cluster,
-  // output is a new cluster composed of the two sub clusters
-  cluster operator+(cluster& rhs)
-  {
-    if (end+1 != rhs.start)
-      throw std::runtime_error("Error: attempt to join non-adjacent clusters");
+    // Overload operator+ to represent merging two clusters, input is rhs cluster,
+    // output is a new cluster composed of the two sub clusters
+    cluster operator+(cluster& rhs)
+    {
+      if (end+1 != rhs.start)
+        throw std::runtime_error("Error: attempt to join non-adjacent clusters");
 
-    double new_value = (value * size() + rhs.value * rhs.size())
-      / double (rhs.end - start);
+      double new_value = (value * size() + rhs.value * rhs.size())
+        / double (rhs.end - start);
 
-    return { start, rhs.end, new_value, self, rhs.self };
-  }
+      return { start, rhs.end, new_value, self, rhs.self };
+    }
 
-  // Overload operator< to enable sorting of clusters by starting vertex
-  bool operator< (const cluster& rhs) const
-  {
-    return start < rhs.start;
-  }
+    // Overload operator< to enable sorting of clusters by starting vertex
+    bool operator< (const cluster& rhs) const
+    {
+      return start < rhs.start;
+    }
 };
 
 /* Function to read a CSV file of time series data and generate the
@@ -449,22 +449,15 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
   return dissimilarity;
 }
 
-int main(int argc, char* argv[])
+/**
+   Populates graph with datapoints from input file
+   @param csv_filename: (std::string) name of input data file
+   @param field_num: (size_t) column of interest in data file
+   @param s: (size_t) gecko parameter for minimum cluster size
+   @return g: (graph) graph of data points
+**/
+graph phase_zero(std::string csv_filename, size_t field_num, size_t s)
 {
-  // If incorrect number of args are supplied, abort
-  if (argc != 4)
-  {
-    std::cout << "Usage: " << argv[0] << " filename field_number s"
-      << std::endl;
-
-    exit(1);
-  }
-
-  // Parse filename, csv field number (clkd), gecko parameter s
-  std::string csv_filename(argv[1]);
-  size_t field_num = std::atol(argv[2]);
-  size_t s = std::atol(argv[3]);
-
   // Read in CSV file and populate graph
   auto start = std::chrono::high_resolution_clock::now();
   graph g = read_graph_nodes(csv_filename, field_num, true);
@@ -482,11 +475,21 @@ int main(int argc, char* argv[])
 
     exit(1);
   }
+  return g;
+}  
 
+/**
+   Many sub-clusters generated from graph using K-nearest Neighbor Graph
+   @param g: (graph) input graph from data
+   @param s: (size_t) gecko parameter for minimum cluster size
+   @return cluster_list: (std::vector) a vector of sub-clusters
+**/
+std::vector<cluster> phase_one(graph g, size_t s)
+{
   // Finish constructing graph by setting edge (cut) values
-  start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::high_resolution_clock::now();
   calc_edge_cuts(g, s);
-  stop = std::chrono::high_resolution_clock::now();
+  auto stop = std::chrono::high_resolution_clock::now();
 
   std::cout << "Determined edge cut weights in "
     << std::chrono::duration_cast<
@@ -512,17 +515,49 @@ int main(int argc, char* argv[])
     << std::chrono::duration_cast<
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
+  
+  return cluster_list;
+}
 
+auto phase_two(std::vector<cluster> cluster_list)
+{
   // Recursively merge clusters
-  start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::high_resolution_clock::now();
   auto dissim = merge_clusters(cluster_list);
-  stop = std::chrono::high_resolution_clock::now();
+  auto stop = std::chrono::high_resolution_clock::now();
 
   std::cout << "Merged clusters based on similarity, resulting in a tree of "
     << cluster_list.size() << " total clusters in "
     << std::chrono::duration_cast<
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
+  
+  return dissim;
+}
+
+int main(int argc, char* argv[])
+{
+  // If incorrect number of args are supplied, abort
+  if (argc != 4)
+  {
+    std::cout << "Usage: " << argv[0] << " filename field_number s" << std::endl;
+    exit(1);
+  }
+
+  // Parse filename, csv field number (clkd), gecko parameter s
+  std::string csv_filename(argv[1]);
+  // 4 from GPS data corresponding to clock drift
+  size_t field_num = std::atol(argv[2]);
+  size_t s = std::atol(argv[3]);
+
+  // populate graph, and measure time
+  graph g = phase_zero(csv_filename, field_num, s);
+  
+  // create sub-clusters from graph
+  std::vector<cluster> cluster_list = phase_one(g, s);
+
+  // recursively merge clusters based on similarity
+  auto dissim = phase_two(cluster_list);
 
   // Determine number of clusters to use
   //   Currently look at dissimilarity - if any merge has a dissimilarity 1500%
