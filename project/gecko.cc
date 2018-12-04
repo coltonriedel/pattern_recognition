@@ -584,6 +584,13 @@ int main(int argc, char* argv[])
     to_use.push_back(cluster_list[cluster_list.size() - i].right);
   }
 
+  // Print ggplot code to add to graphing script
+  //std::cout << "\n### BEGIN R CODE OUTPUT ###" << std::endl;
+  //for (size_t i = 0; i < to_use.size(); ++i)
+  //  std::cout << "  geom_vline(xintercept=" << cluster_list[to_use[i]].start
+  //    << ") +" << std::endl;
+  //std::cout << "### END R CODE OUTPUT ###" << std::endl;
+
   //for (size_t i = 0; i < to_use.size(); ++i)
   //  std::cout << "Cluster: " << to_use[i]
   //    << " (" << cluster_list[to_use[i]].start
