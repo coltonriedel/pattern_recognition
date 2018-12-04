@@ -449,6 +449,36 @@ std::vector<double> merge_clusters(std::vector<cluster>& cluster_list)
   return dissimilarity;
 }
 
+/* Determine number of clusters to use
+ *   Currently look at dissimilarity - if any merge has a dissimilarity 1500%
+ *   larger than the running average, use that merge as the cut off point
+ *
+ * This value may need to be changed, or alternative methods may need to be
+ *   implemented (e.g. an actual regression) to determine this point, subject
+ *   to evaluation of case specific performance
+ *
+ * INPUT:
+ *   dissim : the dissimilarity values when clusters were merged
+ * OUTPUT:
+ *   rec_clusters : the recommended number of clusters to use
+ */
+size_t calc_optimal_num_clusters(std::vector<double>& dissim)
+{
+  double average = dissim[0];
+  size_t i;
+
+  for (i = 1; i < dissim.size(); ++i)
+  {
+    if ((dissim[i] >= 0.05 && dissim[i] > average * 15)
+        || (average == 0 && dissim[i] > 0.1))
+      break;
+
+    average = ((average * i) + dissim[i]) / (i + 1);
+  }
+
+  return dissim.size() - i - 1;
+}
+
 int main(int argc, char* argv[])
 {
   // If incorrect number of args are supplied, abort
@@ -524,27 +554,57 @@ int main(int argc, char* argv[])
       std::chrono::duration<double>>(stop - start).count()
     << " seconds" << std::endl;
 
-  // Determine number of clusters to use
-  //   Currently look at dissimilarity - if any merge has a dissimilarity 1500%
-  //   larger than the running average, use that merge as the cut off point
-  //
-  // This value may need to be changed, or alternative methods may need to be
-  //   implemented (e.g. an actual regression) to determine this point, subject
-  //   to evaluation of case specific performance
-  double average = dissim[0];
-  size_t i;
-  for (i = 1; i < dissim.size(); ++i)
-  {
-    if ((dissim[i] >= 0.05 && dissim[i] > average * 15)
-        || (average == 0 && dissim[i] > 0.1))
-      break;
-
-    average = ((average * i) + dissim[i]) / (i + 1);
-  }
-
-  size_t rec_clusters = dissim.size() - i - 1;
+  size_t rec_clusters = calc_optimal_num_clusters(dissim);
 
   std::cout << "Recommend " << rec_clusters << " clusters" << std::endl;
+
+  std::vector<size_t> to_use;
+
+  // Repeatedly select clusters for use until the desired number is obtained
+  for (size_t i = 1; to_use.size() < rec_clusters; ++i)
+  {
+    // If the ith most recently formed cluster has already been selected,
+    // we need to remove it from the to-use list, as we will be going down
+    // another level and using it's children instead
+    int prev = -1;
+    for (size_t j = 0; prev == -1 && j < to_use.size(); ++j)
+      if (static_cast<int>(to_use[j])
+          == cluster_list[cluster_list.size() - i].self)
+        prev = j;
+
+    // Select the left child for use
+    // If the current node is already in the list, overwrite it with the left
+    // child, else append the left child to the list
+    if (prev == -1)
+      to_use.push_back(cluster_list[cluster_list.size() - i].left);
+    else
+      to_use[prev] = cluster_list[cluster_list.size() - i].left;
+
+    // Append the right child to the list
+    to_use.push_back(cluster_list[cluster_list.size() - i].right);
+  }
+
+  //for (size_t i = 0; i < to_use.size(); ++i)
+  //  std::cout << "Cluster: " << to_use[i]
+  //    << " (" << cluster_list[to_use[i]].start
+  //    << ", " << cluster_list[to_use[i]].end
+  //    << ")" << std::endl;
+
+  // Copy the selected clusters so they can be sorted and more easily managed
+  std::vector<cluster> selected_clusters;
+  for (size_t i = 0; i < to_use.size(); ++i)
+    selected_clusters.push_back(cluster_list[to_use[i]]);
+
+  // Sort the clusters
+  std::sort(selected_clusters.begin(), selected_clusters.end(),
+      std::less<cluster>());
+
+  //std::cout << "Selected clusters:" << std::endl;
+  //for (auto const& c : selected_clusters)
+  //  std::cout
+  //    << " (" << c.start
+  //    << ", " << c.end
+  //    << ")" << std::endl;
 
   // Classify using RIPPER algorithm
   //
